@@ -1,0 +1,239 @@
+-- Quan Prison life H4X
+-- Tab 1: Aimlock (Hold Right Mouse to lock nearest player's torso (HumanoidRootPart) in your FOV [240px], white FOV circle if target, team check)
+-- Tab 2: ESP (Always on, team colors with team check)
+-- Menu UI with two tabs and status notifier
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- === UI Setup ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "QuanPrisonLifeH4X_GUI"
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 400, 0, 250)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -125)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "Quan Prison life H4X"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 26
+
+local Tab1 = Instance.new("TextButton", MainFrame)
+Tab1.Text = "Tab 1: Aimlock"
+Tab1.Size = UDim2.new(0, 200, 0, 30)
+Tab1.Position = UDim2.new(0, 0, 0, 30)
+Tab1.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Tab1.TextColor3 = Color3.fromRGB(200, 200, 200)
+Tab1.Font = Enum.Font.SourceSans
+Tab1.TextSize = 18
+Tab1.AutoButtonColor = false
+
+local Tab2 = Instance.new("TextButton", MainFrame)
+Tab2.Text = "Tab 2: ESP"
+Tab2.Size = UDim2.new(0, 200, 0, 30)
+Tab2.Position = UDim2.new(0,200, 0, 30)
+Tab2.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Tab2.TextColor3 = Color3.fromRGB(200, 200, 200)
+Tab2.Font = Enum.Font.SourceSans
+Tab2.TextSize = 18
+Tab2.AutoButtonColor = false
+
+local Status = Instance.new("TextLabel", MainFrame)
+Status.Size = UDim2.new(1, 0, 0, 30)
+Status.Position = UDim2.new(0, 0, 1, -30)
+Status.BackgroundTransparency = 1
+Status.Text = "Quan Aimlock: Disabled"
+Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+Status.Font = Enum.Font.SourceSansBold
+Status.TextSize = 20
+
+local AimlockFrame = Instance.new("Frame", MainFrame)
+AimlockFrame.Size = UDim2.new(1, 0, 1, -60)
+AimlockFrame.Position = UDim2.new(0, 0, 0, 60)
+AimlockFrame.BackgroundTransparency = 1
+
+local ESPFrame = Instance.new("Frame", MainFrame)
+ESPFrame.Size = UDim2.new(1, 0, 1, -60)
+ESPFrame.Position = UDim2.new(0, 0, 0, 60)
+ESPFrame.BackgroundTransparency = 1
+ESPFrame.Visible = false
+
+Tab1.MouseButton1Click:Connect(function()
+    Tab1.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    Tab2.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    AimlockFrame.Visible = true
+    ESPFrame.Visible = false
+end)
+Tab2.MouseButton1Click:Connect(function()
+    Tab1.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab2.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    AimlockFrame.Visible = false
+    ESPFrame.Visible = true
+end)
+
+local AimlockDesc = Instance.new("TextLabel", AimlockFrame)
+AimlockDesc.Size = UDim2.new(1, -20, 0, 120)
+AimlockDesc.Position = UDim2.new(0, 10, 0, 10)
+AimlockDesc.BackgroundTransparency = 1
+AimlockDesc.TextWrapped = true
+AimlockDesc.Text = "Aimlock: Hold Right Mouse to lock nearest enemy's torso in the white FOV circle\nTeamCheck enabled (no aimlock on your team)\nFOV circle is white if a target is inside, grey if not\nFOV: 240px"
+AimlockDesc.TextColor3 = Color3.fromRGB(200, 200, 255)
+AimlockDesc.Font = Enum.Font.SourceSans
+AimlockDesc.TextSize = 20
+
+local ESPDesc = Instance.new("TextLabel", ESPFrame)
+ESPDesc.Size = UDim2.new(1, -20, 0, 120)
+ESPDesc.Position = UDim2.new(0, 10, 0, 10)
+ESPDesc.BackgroundTransparency = 1
+ESPDesc.TextWrapped = true
+ESPDesc.Text = "ESP is always ON\nHighlights: Police (Blue), Prisoner (Orange), Criminals (Red)\nTeamCheck enabled"
+ESPDesc.TextColor3 = Color3.fromRGB(255, 220, 180)
+ESPDesc.Font = Enum.Font.SourceSans
+ESPDesc.TextSize = 20
+
+-- === Aimlock Variables ===
+local AimlockEnabled = false
+local RightMouseDown = false
+local FOV_RADIUS = 240 -- pixel radius for FOV
+
+-- FOV Circle (Drawing API)
+local FOVCircle = nil
+pcall(function()
+    FOVCircle = Drawing.new("Circle")
+    FOVCircle.Transparency = 1
+    FOVCircle.Thickness = 2
+    FOVCircle.NumSides = 60
+    FOVCircle.Color = Color3.fromRGB(255,255,255)
+    FOVCircle.Radius = FOV_RADIUS
+    FOVCircle.Filled = false
+    FOVCircle.Visible = false
+end)
+
+local TeamColors = {
+    ["Police"] = Color3.fromRGB(0, 153, 255),
+    ["Prisoner"] = Color3.fromRGB(255, 154, 0),
+    ["Criminal"] = Color3.fromRGB(255, 0, 0),
+}
+
+-- Helper: Valid aimlock target
+local function IsValidTarget(plr)
+    return plr and plr ~= LocalPlayer and plr.Team ~= nil and plr.Team ~= LocalPlayer.Team and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Helper: Get nearest player in FOV (Torso)
+local function GetNearestInFOV()
+    local closest, minDist = nil, math.huge
+    local mousePos = UserInputService:GetMouseLocation()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if IsValidTarget(plr) then
+            local hrp = plr.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if onScreen then
+                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
+                if dist < FOV_RADIUS and dist < minDist then
+                    minDist = dist
+                    closest = plr
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- Aimlock Controls
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        RightMouseDown = true
+    elseif input.KeyCode == Enum.KeyCode.Q then
+        AimlockEnabled = not AimlockEnabled
+        if AimlockEnabled then
+            Status.Text = "Quan Aimlock: Enabled"
+            Status.TextColor3 = Color3.fromRGB(100,255,100)
+        else
+            Status.Text = "Quan Aimlock: Disabled"
+            Status.TextColor3 = Color3.fromRGB(255,100,100)
+        end
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        RightMouseDown = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    -- FOV Circle
+    if FOVCircle then
+        local pos = UserInputService:GetMouseLocation()
+        FOVCircle.Position = Vector2.new(pos.X, pos.Y)
+        local nearest = GetNearestInFOV()
+        FOVCircle.Visible = AimlockEnabled
+        if nearest then
+            FOVCircle.Color = Color3.fromRGB(255,255,255)
+        else
+            FOVCircle.Color = Color3.fromRGB(80,80,80)
+        end
+    end
+    -- Aimlock
+    if AimlockEnabled and RightMouseDown then
+        local target = GetNearestInFOV()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Character.HumanoidRootPart.Position)
+        end
+    end
+end)
+
+-- === ESP Always On ===
+local ESP_Objects = {}
+local function ClearESP()
+    for plr, adorn in pairs(ESP_Objects) do if adorn then adorn:Destroy() end end
+    ESP_Objects = {}
+end
+local function UpdateESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Team and TeamColors[plr.Team.Name] then
+            local char = plr.Character
+            if char and char:FindFirstChild("HumanoidRootPart") and not ESP_Objects[plr] then
+                local adorn = Instance.new("BoxHandleAdornment")
+                adorn.Adornee = char.HumanoidRootPart
+                adorn.Size = Vector3.new(3,6,3)
+                adorn.Transparency = 0.65
+                adorn.AlwaysOnTop = true
+                adorn.ZIndex = 10
+                adorn.Color3 = TeamColors[plr.Team.Name]
+                adorn.Parent = game.CoreGui
+                ESP_Objects[plr] = adorn
+            end
+        end
+    end
+    for plr, adorn in pairs(ESP_Objects) do
+        if not plr.Parent or not plr.Team or not TeamColors[plr.Team.Name] or not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
+            adorn:Destroy()
+            ESP_Objects[plr] = nil
+        end
+    end
+end
+RunService.RenderStepped:Connect(UpdateESP)
+Players.PlayerAdded:Connect(function() task.wait(1) UpdateESP() end)
+Players.PlayerRemoving:Connect(function(plr) if ESP_Objects[plr] then ESP_Objects[plr]:Destroy() ESP_Objects[plr] = nil end end)
+
+-- Initial UI State
+Tab1.BackgroundColor3 = Color3.fromRGB(60,60,60)
+AimlockFrame.Visible = true
+ESPFrame.Visible = false
+Status.Text = "Quan Aimlock: Disabled"
+Status.TextColor3 = Color3.fromRGB(255,100,100)
+UpdateESP()
