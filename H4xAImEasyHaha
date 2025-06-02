@@ -1,5 +1,5 @@
 -- Quan Prison life H4X
--- Tab 1: Aimlock (Hold Right Mouse to lock nearest player's torso (HumanoidRootPart) in your FOV [240px], white FOV circle if target, team check)
+-- Tab 1: Aimlock (Hold Right Mouse to lock nearest player's torso (HumanoidRootPart) in your FOV [240px], white FOV circle if target, team check, wallcheck)
 -- Tab 2: ESP (Always on, team colors with team check)
 -- Menu UI with two tabs and status notifier
 
@@ -88,7 +88,7 @@ AimlockDesc.Size = UDim2.new(1, -20, 0, 120)
 AimlockDesc.Position = UDim2.new(0, 10, 0, 10)
 AimlockDesc.BackgroundTransparency = 1
 AimlockDesc.TextWrapped = true
-AimlockDesc.Text = "Aimlock: Hold Right Mouse to lock nearest enemy's torso in the white FOV circle\nTeamCheck enabled (no aimlock on your team)\nFOV circle is white if a target is inside, grey if not\nFOV: 240px"
+AimlockDesc.Text = "Aimlock: Hold Right Mouse to lock nearest enemy's torso in the white FOV circle\nTeamCheck & WallCheck enabled (no aimlock on your team or behind walls)\nFOV circle is white if a target is inside, grey if not\nFOV: 240px"
 AimlockDesc.TextColor3 = Color3.fromRGB(200, 200, 255)
 AimlockDesc.Font = Enum.Font.SourceSans
 AimlockDesc.TextSize = 20
@@ -127,9 +127,38 @@ local TeamColors = {
     ["Criminal"] = Color3.fromRGB(255, 0, 0),
 }
 
--- Helper: Valid aimlock target
+-- === WallCheck Helper ===
+local function IsVisible(targetPart)
+    if not targetPart then return false end
+    local origin = Camera.CFrame.Position
+    local targetPosition = targetPart.Position
+    local direction = (targetPosition - origin)
+    local distance = direction.Magnitude
+    direction = direction.Unit * distance -- Normalize
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    raycastParams.IgnoreWater = true
+
+    local result = workspace:Raycast(origin, direction, raycastParams)
+    if not result then
+        return true -- No obstruction
+    elseif result.Instance and targetPart:IsDescendantOf(result.Instance.Parent) then
+        return true -- Hit part of the target's character
+    end
+    return false
+end
+
+-- Helper: Valid aimlock target (now with wallcheck)
 local function IsValidTarget(plr)
-    return plr and plr ~= LocalPlayer and plr.Team ~= nil and plr.Team ~= LocalPlayer.Team and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+    return plr
+        and plr ~= LocalPlayer
+        and plr.Team ~= nil
+        and plr.Team ~= LocalPlayer.Team
+        and plr.Character
+        and plr.Character:FindFirstChild("HumanoidRootPart")
+        and IsVisible(plr.Character.HumanoidRootPart)
 end
 
 -- Helper: Get nearest player in FOV (Torso)
